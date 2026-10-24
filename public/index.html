@@ -1,0 +1,1091 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>WA Dashboard — Pixel & Co.</title>
+<script src="/socket.io/socket.io.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0c0e13;--surface:#13161e;--s2:#1a1e2a;--s3:#20253a;
+  --border:#222636;--border2:#2c3347;
+  --green:#25d366;--green-dim:#1a9e4a;--green-glow:rgba(37,211,102,.12);
+  --red:#ff4d6d;--yellow:#ffd166;--blue:#4cc9f0;--purple:#b69cff;
+  --text:#e4e8f4;--muted:#6b7585;--muted2:#3a4058;
+  --r:10px;--font:'Inter',sans-serif;--mono:'JetBrains Mono',monospace;
+}
+body{font-family:var(--font);background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direction:column;overflow:hidden}
+
+/* TOPBAR */
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:0 20px;height:50px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0;z-index:50}
+.brand{font-weight:700;font-size:14px;display:flex;align-items:center;gap:8px}
+.brand-pip{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 7px var(--green)}
+.topbar-r{display:flex;align-items:center;gap:10px}
+.pill{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:500;padding:3px 9px;border-radius:20px;border:1px solid var(--border);color:var(--muted)}
+.pill .d{width:6px;height:6px;border-radius:50%;background:var(--muted2)}
+.pill.connected{color:var(--green);border-color:var(--green-dim);background:var(--green-glow)}
+.pill.connected .d{background:var(--green);box-shadow:0 0 5px var(--green)}
+.pill.qr{color:var(--yellow);border-color:rgba(255,209,102,.35)}
+.pill.qr .d{background:var(--yellow)}
+.xbtn{font-size:11px;padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;font-family:var(--font);transition:all .15s}
+.xbtn:hover{border-color:var(--red);color:var(--red)}
+
+/* LAYOUT */
+.layout{display:grid;grid-template-columns:210px 1fr 300px;flex:1;overflow:hidden;min-height:0}
+
+/* SIDEBAR */
+.sidebar{background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:10px;gap:2px;overflow-y:auto}
+.sec-label{font-size:9px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted2);padding:10px 8px 4px}
+.nav{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:7px;cursor:pointer;font-size:12px;color:var(--muted);border:1px solid transparent;transition:all .12s;user-select:none;position:relative}
+.nav:hover{background:var(--s2);color:var(--text)}
+.nav.active{background:var(--green-glow);color:var(--green);border-color:rgba(37,211,102,.15)}
+.nav svg{flex-shrink:0;opacity:.7}
+.nav.active svg{opacity:1}
+.nav-badge{position:absolute;right:8px;top:50%;transform:translateY(-50%);background:var(--red);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:10px;min-width:16px;text-align:center}
+
+/* AI TOGGLE */
+.ai-box{margin:6px 0 2px;background:var(--s2);border:1px solid var(--border);border-radius:var(--r);padding:12px 10px;display:flex;flex-direction:column;gap:8px}
+.ai-box-top{display:flex;align-items:center;justify-content:space-between}
+.ai-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--muted)}
+.ai-live{font-size:10px;font-weight:700;color:var(--green);display:flex;align-items:center;gap:4px}
+.ai-live-dot{width:5px;height:5px;border-radius:50%;background:var(--green);animation:blink 1.2s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+.toggle{width:100%;padding:8px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;border:none;font-family:var(--font);transition:all .18s;display:flex;align-items:center;justify-content:center;gap:6px}
+.toggle.start{background:var(--green);color:#0c0e13}
+.toggle.start:hover{background:#2ee070;box-shadow:0 0 14px rgba(37,211,102,.3)}
+.toggle.stop{background:rgba(255,77,109,.1);color:var(--red);border:1px solid rgba(255,77,109,.25)}
+.toggle.stop:hover{background:rgba(255,77,109,.18)}
+.toggle:disabled{opacity:.35;cursor:not-allowed;box-shadow:none}
+
+/* MINI STATS */
+.mini-stat{background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:9px 11px;margin-top:2px}
+.mini-label{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px}
+.mini-val{font-size:19px;font-weight:700;font-variant-numeric:tabular-nums}
+.mini-sub{font-size:10px;color:var(--muted2);margin-top:1px}
+.prog-wrap{background:var(--border);border-radius:3px;height:3px;margin-top:6px}
+.prog-fill{height:3px;border-radius:3px;background:var(--green);transition:width .4s}
+
+/* MAIN */
+.main{display:flex;flex-direction:column;overflow-y:auto;padding:18px;gap:16px}
+.view{display:none;flex-direction:column;gap:16px}
+.view.active{display:flex}
+
+/* PANEL */
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:11px;overflow:hidden}
+.ph{display:flex;align-items:center;justify-content:space-between;padding:12px 15px;border-bottom:1px solid var(--border)}
+.pt{font-size:13px;font-weight:600;display:flex;align-items:center;gap:7px}
+.pb{padding:15px}
+
+/* STAT CARDS */
+.stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.stat-card{background:var(--s2);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center}
+.stat-num{font-size:26px;font-weight:700;font-variant-numeric:tabular-nums;margin-bottom:3px}
+.stat-lbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+.stat-sub{font-size:11px;color:var(--muted2);margin-top:4px}
+.c-green{color:var(--green)}
+.c-yellow{color:var(--yellow)}
+.c-blue{color:var(--blue)}
+.c-red{color:var(--red)}
+.c-purple{color:var(--purple)}
+
+/* BUTTONS */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 13px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;border:none;font-family:var(--font);transition:all .14s;white-space:nowrap}
+.btn-g{background:var(--green);color:#0c0e13}
+.btn-g:hover{background:#2ee070}
+.btn-g:disabled{background:var(--muted2);color:var(--muted);cursor:not-allowed}
+.btn-r{background:transparent;color:var(--red);border:1px solid rgba(255,77,109,.3)}
+.btn-r:hover{background:rgba(255,77,109,.1)}
+.btn-y{background:transparent;color:var(--yellow);border:1px solid rgba(255,209,102,.3)}
+.btn-y:hover{background:rgba(255,209,102,.1)}
+.btn-b{background:transparent;color:var(--blue);border:1px solid rgba(76,201,240,.3)}
+.btn-b:hover{background:rgba(76,201,240,.1)}
+.btn-ghost{background:transparent;color:var(--muted);border:1px solid var(--border)}
+.btn-ghost:hover{background:var(--s2);color:var(--text)}
+.btn-row{display:flex;gap:8px;flex-wrap:wrap}
+
+/* INPUTS */
+input[type=text],input[type=number],select,textarea{background:var(--s2);border:1px solid var(--border);border-radius:7px;color:var(--text);font-family:var(--font);font-size:12px;padding:8px 11px;outline:none;transition:border-color .2s;width:100%}
+input:focus,select:focus,textarea:focus{border-color:var(--green)}
+input::placeholder,textarea::placeholder{color:var(--muted2)}
+textarea{resize:vertical;line-height:1.6}
+
+/* QR */
+.qr-wrap{display:flex;gap:24px;align-items:center;flex-wrap:wrap}
+.qr-box{background:#fff;border-radius:8px;padding:10px;width:160px;height:160px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.qr-box img{width:100%;height:100%;object-fit:contain}
+.step{display:flex;gap:8px;margin-bottom:8px;font-size:12px;color:var(--muted);align-items:flex-start}
+.sn{width:17px;height:17px;border-radius:50%;background:var(--green-glow);color:var(--green);font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
+
+/* CAMPAIGN BAR */
+.c-bar{display:none;background:var(--green-glow);border:1px solid rgba(37,211,102,.2);border-radius:var(--r);padding:10px 14px;align-items:center;gap:14px}
+.c-bar.on{display:flex}
+.c-bar-text{flex:1;font-size:12px;font-weight:600;color:var(--green)}
+.c-countdown{font-size:11px;color:var(--muted);font-family:var(--mono)}
+
+/* DROP ZONE */
+.drop{border:2px dashed var(--border);border-radius:var(--r);padding:28px;text-align:center;cursor:pointer;transition:all .2s;background:var(--s2)}
+.drop:hover,.drop.over{border-color:var(--green);background:var(--green-glow)}
+.drop p{font-size:12px;color:var(--muted);margin-top:6px}
+.drop p strong{color:var(--green)}
+.drop p code{color:var(--green);font-family:var(--mono);font-size:11px}
+
+/* TABLE */
+.tbl-wrap{overflow-x:auto;border-radius:8px;border:1px solid var(--border);display:none;margin-top:12px}
+table{width:100%;border-collapse:collapse;font-size:11px}
+thead{background:var(--s2)}
+th{padding:7px 10px;text-align:left;font-weight:500;color:var(--muted);border-bottom:1px solid var(--border)}
+td{padding:6px 10px;border-bottom:1px solid var(--border);color:var(--text)}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(255,255,255,.02)}
+
+/* TEMPLATE TAGS */
+.tag-row{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px}
+.tag{font-size:10px;padding:2px 7px;border-radius:4px;border:1px solid var(--border);background:var(--s2);color:var(--green);font-family:var(--mono);cursor:pointer;transition:all .12s}
+.tag:hover{background:var(--green-glow);border-color:var(--green)}
+
+/* LOG */
+.log-list{display:flex;flex-direction:column;gap:4px;max-height:420px;overflow-y:auto}
+.log-row{display:flex;align-items:flex-start;gap:8px;padding:7px 9px;background:var(--s2);border-radius:7px;border:1px solid var(--border);font-size:11px}
+.badge{font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;text-transform:uppercase;flex-shrink:0;min-width:52px;text-align:center;margin-top:1px}
+.badge.sent{background:rgba(37,211,102,.12);color:var(--green)}
+.badge.skipped{background:rgba(255,209,102,.12);color:var(--yellow)}
+.badge.failed{background:rgba(255,77,109,.12);color:var(--red)}
+.badge.ai_reply{background:rgba(76,201,240,.12);color:var(--blue)}
+.badge.system{background:rgba(76,201,240,.08);color:var(--blue)}
+.badge.ignored{background:rgba(107,117,133,.1);color:var(--muted)}
+.badge.error{background:rgba(255,77,109,.12);color:var(--red)}
+.badge.seen{background:rgba(182,156,255,.12);color:var(--purple)}
+.badge.reply{background:rgba(255,209,102,.12);color:var(--yellow)}
+.badge.manual_send{background:rgba(37,211,102,.08);color:var(--green)}
+.log-content{flex:1;min-width:0}
+.log-name{font-weight:600;color:var(--text)}
+.log-msg{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+.log-reply{color:var(--green);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.log-time{font-size:9px;color:var(--muted2);font-family:var(--mono);flex-shrink:0;margin-top:2px}
+
+/* NUMBERS */
+.add-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.add-row input{flex:1;min-width:100px}
+.num-list{display:flex;flex-direction:column;gap:5px;max-height:320px;overflow-y:auto}
+.num-row{display:flex;align-items:center;gap:9px;padding:8px 11px;background:var(--s2);border-radius:8px;border:1px solid var(--border)}
+.num-av{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--green-dim),var(--blue));display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;flex-shrink:0}
+.num-info{flex:1;min-width:0}
+.num-name{font-size:12px;font-weight:500}
+.num-phone{font-size:10px;color:var(--muted);font-family:var(--mono)}
+.num-actions{display:flex;gap:4px}
+.ic-btn{width:26px;height:26px;border-radius:5px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .13s}
+.ic-btn.del:hover{border-color:var(--red);color:var(--red);background:rgba(255,77,109,.08)}
+.ic-btn.mem:hover{border-color:var(--yellow);color:var(--yellow);background:rgba(255,209,102,.08)}
+
+/* PERSONA */
+.p-grid{display:grid;grid-template-columns:1fr 1fr;gap:11px;margin-bottom:11px}
+.fg{display:flex;flex-direction:column;gap:5px}
+.fl{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.6px}
+
+/* RIGHT PANEL — tabbed */
+.right-col{background:var(--surface);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;min-width:0}
+.right-tabs{display:flex;border-bottom:1px solid var(--border);flex-shrink:0}
+.rtab{flex:1;padding:10px 6px;font-size:11px;font-weight:600;color:var(--muted);cursor:pointer;text-align:center;border-bottom:2px solid transparent;transition:all .15s;position:relative}
+.rtab:hover{color:var(--text)}
+.rtab.active{color:var(--green);border-bottom-color:var(--green)}
+.rtab-badge{display:inline-block;background:var(--red);color:#fff;font-size:8px;font-weight:700;padding:1px 4px;border-radius:8px;margin-left:3px;vertical-align:middle}
+.right-body{flex:1;overflow-y:auto}
+.rpanel{display:none;flex-direction:column;height:100%}
+.rpanel.active{display:flex}
+
+/* INBOX ITEMS */
+.msg-item{padding:10px 13px;border-bottom:1px solid var(--border);cursor:default;transition:background .12s}
+.msg-item:hover{background:var(--s2)}
+.msg-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:2px}
+.msg-name{font-size:12px;font-weight:600;display:flex;align-items:center;gap:5px}
+.msg-t{font-size:9px;color:var(--muted);font-family:var(--mono)}
+.msg-ph{font-size:10px;color:var(--muted2);margin-bottom:2px}
+.msg-txt{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ndot{display:inline-block;width:5px;height:5px;background:var(--green);border-radius:50%;animation:blink 1.5s infinite}
+.chip{font-size:10px;font-weight:600;background:var(--green-glow);color:var(--green);border:1px solid rgba(37,211,102,.2);border-radius:10px;padding:2px 8px}
+
+/* REPLIES */
+.reply-item{padding:10px 13px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .12s}
+.reply-item:hover{background:var(--s2)}
+.reply-item.active{background:var(--s3);border-left:2px solid var(--green)}
+.hot-badge{font-size:9px;font-weight:700;background:rgba(255,77,109,.12);color:var(--red);border:1px solid rgba(255,77,109,.2);border-radius:4px;padding:1px 5px}
+.thread-view{display:none;flex-direction:column;height:100%}
+.thread-view.active{display:flex}
+.thread-header{padding:10px 13px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-shrink:0}
+.back-btn{background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:11px;padding:4px 8px;border-radius:5px;border:1px solid var(--border);font-family:var(--font)}
+.back-btn:hover{color:var(--text);background:var(--s2)}
+.thread-body{flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:8px}
+.bubble{max-width:85%;padding:8px 11px;border-radius:10px;font-size:12px;line-height:1.5}
+.bubble.them{background:var(--s2);border:1px solid var(--border);align-self:flex-start;border-radius:10px 10px 10px 3px}
+.bubble.me{background:var(--green-glow);border:1px solid rgba(37,211,102,.2);color:var(--green);align-self:flex-end;border-radius:10px 10px 3px 10px}
+.bubble-time{font-size:9px;color:var(--muted2);margin-top:3px;font-family:var(--mono)}
+.reply-input-row{padding:10px;border-top:1px solid var(--border);display:flex;gap:6px;flex-shrink:0}
+.reply-input-row input{flex:1}
+.reply-input-row button{flex-shrink:0}
+
+/* SEEN RECEIPTS */
+.seen-item{padding:9px 13px;border-bottom:1px solid var(--border);font-size:11px;display:flex;align-items:center;gap:9px}
+.seen-av{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,var(--purple),var(--blue));display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0}
+.seen-info{flex:1;min-width:0}
+.seen-name{font-weight:600;font-size:11px}
+.seen-sub{color:var(--muted);font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.seen-time{font-size:9px;color:var(--purple);font-family:var(--mono);flex-shrink:0}
+.check-icon{color:var(--purple);font-size:13px}
+
+/* EMPTY */
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:30px;color:var(--muted);font-size:12px;gap:8px;text-align:center}
+
+/* TOAST */
+.toasts{position:fixed;bottom:18px;right:18px;z-index:999;display:flex;flex-direction:column;gap:6px}
+.toast{background:var(--s2);border:1px solid var(--border);border-radius:7px;padding:8px 13px;font-size:12px;display:flex;align-items:center;gap:6px;animation:sup .18s ease;max-width:300px;box-shadow:0 4px 20px rgba(0,0,0,.4)}
+.toast.ok{border-left:3px solid var(--green)}
+.toast.err{border-left:3px solid var(--red)}
+.toast.info{border-left:3px solid var(--blue)}
+@keyframes sup{from{opacity:0;transform:translateY(6px)}}
+
+::-webkit-scrollbar{width:3px;height:3px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--muted2);border-radius:3px}
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="brand"><div class="brand-pip"></div>WA Dashboard — Pixel & Co.</div>
+  <div class="topbar-r">
+    <div class="pill" id="conn-pill"><span class="d"></span><span id="conn-txt">Disconnected</span></div>
+    <button class="xbtn" onclick="doLogout()">Logout WA</button>
+  </div>
+</div>
+
+<div class="layout">
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+  <div class="ai-box">
+    <div class="ai-box-top">
+      <span class="ai-label">AI Auto-Reply</span>
+      <span class="ai-live" id="ai-live" style="display:none"><span class="ai-live-dot"></span>LIVE</span>
+    </div>
+    <button class="toggle start" id="ai-btn" onclick="toggleAI()" disabled>▶ Start AI</button>
+  </div>
+
+  <div class="sec-label">Sections</div>
+  <div class="nav active" onclick="go('connect')" id="nav-connect">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/></svg> Dashboard
+  </div>
+  <div class="nav" onclick="go('campaign')" id="nav-campaign">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg> Campaign
+  </div>
+  <div class="nav" onclick="go('numbers')" id="nav-numbers">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> AI Numbers
+  </div>
+  <div class="nav" onclick="go('persona')" id="nav-persona">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> My Persona
+  </div>
+  <div class="nav" onclick="go('log')" id="nav-log">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg> Activity Log
+  </div>
+
+  <div class="sec-label" style="margin-top:6px">Stats</div>
+  <div class="mini-stat">
+    <div class="mini-label">Sent Today</div>
+    <div class="mini-val" id="s-sent">0</div>
+    <div class="mini-sub" id="s-limit">of 200 limit</div>
+    <div class="prog-wrap"><div class="prog-fill" id="s-bar" style="width:0%"></div></div>
+  </div>
+  <div class="mini-stat">
+    <div class="mini-label">Seen / Replied</div>
+    <div class="mini-val c-purple" id="s-seen">0</div>
+    <div class="mini-sub"><span id="s-replied">0</span> replied · <span id="s-hotleads">0</span> hot leads</div>
+  </div>
+  <div class="mini-stat">
+    <div class="mini-label">CSV Contacts</div>
+    <div class="mini-val" id="s-csv">0</div>
+    <div class="mini-sub">loaded for campaign</div>
+  </div>
+  <div class="mini-stat">
+    <div class="mini-label">AI Numbers</div>
+    <div class="mini-val" id="s-nums">0</div>
+    <div class="mini-sub">allowed to trigger AI</div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+
+  <!-- DASHBOARD / CONNECT -->
+  <div class="view active" id="view-connect">
+    <div class="panel" id="qr-panel" style="display:none">
+      <div class="ph"><div class="pt">📱 Scan QR to Connect</div></div>
+      <div class="pb">
+        <div class="qr-wrap">
+          <div class="qr-box"><img id="qr-img" src="" alt="QR"/></div>
+          <div>
+            <div style="font-size:14px;font-weight:600;margin-bottom:10px">Connect WhatsApp</div>
+            <div class="step"><span class="sn">1</span>Open WhatsApp on your phone</div>
+            <div class="step"><span class="sn">2</span>Tap ⋮ → Linked Devices</div>
+            <div class="step"><span class="sn">3</span>Tap "Link a Device"</div>
+            <div class="step"><span class="sn">4</span>Point camera at the QR code</div>
+            <div style="margin-top:10px;font-size:11px;color:var(--muted)">QR refreshes automatically every 30s.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" id="conn-panel" style="display:none">
+      <div class="ph"><div class="pt">✅ Connected as <strong id="conn-name" style="color:var(--green)">—</strong></div></div>
+    </div>
+
+    <!-- Live Campaign Stats -->
+    <div class="panel">
+      <div class="ph"><div class="pt">📊 Campaign Analytics</div></div>
+      <div class="pb">
+        <div class="stat-grid">
+          <div class="stat-card">
+            <div class="stat-num c-green" id="ds-sent">0</div>
+            <div class="stat-lbl">Sent</div>
+            <div class="stat-sub">this session</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-num c-purple" id="ds-seen">0</div>
+            <div class="stat-lbl">Seen ✓✓</div>
+            <div class="stat-sub" id="ds-seen-pct">0% open rate</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-num c-yellow" id="ds-replied">0</div>
+            <div class="stat-lbl">Replied</div>
+            <div class="stat-sub" id="ds-replied-pct">0% reply rate</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-num c-red" id="ds-hotleads">0</div>
+            <div class="stat-lbl">Hot Leads 🔥</div>
+            <div class="stat-sub">replied contacts</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="ph"><div class="pt">⚡ Two Modes</div></div>
+      <div class="pb" style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div style="background:var(--s2);border-radius:8px;padding:12px;font-size:12px;color:var(--muted);line-height:1.8;border:1px solid var(--border)">
+          <div style="color:var(--green);font-weight:600;margin-bottom:5px">📤 Campaign (Outreach)</div>
+          Upload CSV → write template → blast<br/>
+          8–20s random delay, 200/day limit<br/>
+          Tracks who <strong style="color:var(--purple)">seen</strong> &amp; who <strong style="color:var(--yellow)">replied</strong>
+        </div>
+        <div style="background:var(--s2);border-radius:8px;padding:12px;font-size:12px;color:var(--muted);line-height:1.8;border:1px solid var(--border)">
+          <div style="color:var(--blue);font-weight:600;margin-bottom:5px">🤖 AI Auto-Reply</div>
+          Replies as you — your persona<br/>
+          Remembers conversation context<br/>
+          Typing indicator before replying
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CAMPAIGN -->
+  <div class="view" id="view-campaign">
+    <div class="c-bar" id="c-bar">
+      <div>
+        <div class="c-bar-text" id="c-bar-txt">Campaign running...</div>
+        <div class="c-countdown" id="c-countdown"></div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-y" onclick="pauseCampaign()" id="btn-pause">⏸ Pause</button>
+        <button class="btn btn-r" onclick="stopCampaign()">⏹ Stop</button>
+      </div>
+    </div>
+
+    <!-- STEP 1: CSV -->
+    <div class="panel">
+      <div class="ph">
+        <div class="pt">Step 1 — Upload Contacts CSV</div>
+        <span id="csv-chip" style="display:none;font-size:10px;font-weight:600;color:var(--green);background:var(--green-glow);border:1px solid rgba(37,211,102,.2);border-radius:10px;padding:2px 8px">0 contacts</span>
+      </div>
+      <div class="pb">
+        <div class="drop" id="drop-zone" onclick="document.getElementById('csv-input').click()">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="12" x2="12" y2="18"/><polyline points="9 15 12 18 15 15"/></svg>
+          <p><strong>Click to upload</strong> or drag &amp; drop your CSV</p>
+          <p>Required: <code>name</code>, <code>phone</code> — extra columns become <code>{{variables}}</code></p>
+        </div>
+        <input type="file" id="csv-input" accept=".csv" style="display:none" onchange="uploadCSV(this.files[0])"/>
+        <div class="tbl-wrap" id="csv-preview"><table id="preview-tbl"></table></div>
+      </div>
+    </div>
+
+    <!-- STEP 2: TEMPLATE -->
+    <div class="panel">
+      <div class="ph"><div class="pt">Step 2 — Write Your Message Template</div></div>
+      <div class="pb">
+        <div style="margin-bottom:8px;font-size:11px;color:var(--muted)">Click a tag to insert it:</div>
+        <div class="tag-row" id="tag-row">
+          <span class="tag" onclick="insertTag('{{name}}')">{{name}}</span>
+          <span class="tag" onclick="insertTag('{{company}}')">{{company}}</span>
+          <span class="tag" onclick="insertTag('{{city}}')">{{city}}</span>
+          <span class="tag" onclick="insertTag('{{industry}}')">{{industry}}</span>
+        </div>
+        <textarea id="tpl-input" rows="10" oninput="updatePreview()">Hello {{name}},
+
+The {{industry}} space has gotten a lot more competitive lately, and standing out online matters more than ever.
+
+I came across {{company}} recently and wanted to reach out. I'm Keshav, founder of Pixel &amp; Co. — we help businesses show up better online through web design, social media, and graphic design.
+
+Whether it's refreshing your website, building a more consistent social media presence, or sharpening your visual branding, I think there could be a few good ways to help {{company}} stand out more.
+
+Here's a demo: https://doctorpro-wbs.webflow.io/
+
+Grab a time here: https://calendly.com/keshxvdayal/pixel-co-1-1-meet
+
+Regards,
+Keshav
+Founder, Pixel &amp; Co.
+https://pixell-co.vercel.app/</textarea>
+        <div style="margin-top:12px">
+          <div style="font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);font-weight:700;margin-bottom:6px">Preview</div>
+          <div id="tpl-preview" style="background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:12px;font-size:12px;line-height:1.7;white-space:pre-wrap;color:var(--text);min-height:60px"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 3: SEND -->
+    <div class="panel">
+      <div class="ph"><div class="pt">Step 3 — Start Campaign</div></div>
+      <div class="pb">
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px">
+          <div style="background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:10px;text-align:center">
+            <div style="font-size:18px;font-weight:700;color:var(--green)" id="inf-contacts">0</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:2px">contacts</div>
+          </div>
+          <div style="background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:10px;text-align:center">
+            <div style="font-size:18px;font-weight:700;color:var(--yellow)">200</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:2px">daily limit</div>
+          </div>
+          <div style="background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:10px;text-align:center">
+            <div style="font-size:18px;font-weight:700;color:var(--blue)">8–20s</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:2px">delay</div>
+          </div>
+          <div style="background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:10px;text-align:center">
+            <div style="font-size:18px;font-weight:700;color:var(--text)" id="inf-sent">0</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:2px">sent today</div>
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-g" id="btn-start" onclick="startCampaign()">▶ Start Campaign</button>
+          <button class="btn btn-ghost" onclick="go('log')">View Log →</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- AI NUMBERS -->
+  <div class="view" id="view-numbers">
+    <div class="panel">
+      <div class="ph"><div class="pt">Add Allowed Number</div></div>
+      <div class="pb">
+        <div class="add-row">
+          <input type="text" id="n-name" placeholder="Name"/>
+          <input type="text" id="n-phone" placeholder="Phone (e.g. 9876543210)"/>
+          <input type="text" id="n-note" placeholder="Note (optional)"/>
+          <button class="btn btn-g" onclick="addNumber()" style="flex-shrink:0">Add</button>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:12px">AI will ONLY auto-reply to numbers in this list.</div>
+        <div class="num-list" id="num-list"><div class="empty">No numbers added yet</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PERSONA -->
+  <div class="view" id="view-persona">
+    <div class="panel">
+      <div class="ph">
+        <div class="pt">My Persona</div>
+        <button class="btn btn-g" onclick="savePersona()">Save</button>
+      </div>
+      <div class="pb">
+        <div class="p-grid">
+          <div class="fg"><label class="fl">Your Name</label><input type="text" id="p-name" placeholder="Keshav"/></div>
+          <div class="fg"><label class="fl">Your Role</label><input type="text" id="p-role" placeholder="Founder of Pixel & Co."/></div>
+        </div>
+        <div class="fg" style="margin-bottom:11px"><label class="fl">Tone & Style</label><input type="text" id="p-tone" placeholder="Friendly, casual, short replies, never robotic"/></div>
+        <div class="fg" style="margin-bottom:11px"><label class="fl">Business Context</label><textarea id="p-ctx" rows="3" placeholder="What you offer, website, Calendly link, specialties..."></textarea></div>
+        <div class="fg"><label class="fl">Rules (one per line)</label><textarea id="p-rules" rows="5" placeholder="Never sound robotic&#10;Keep replies under 4 sentences&#10;Don't promise discounts&#10;If asked about pricing, suggest a call&#10;Never reveal you're an AI"></textarea></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LOG -->
+  <div class="view" id="view-log">
+    <div class="panel">
+      <div class="ph">
+        <div class="pt">Activity Log</div>
+        <button class="btn btn-ghost" onclick="clearLog()" style="font-size:11px;padding:5px 10px">Clear</button>
+      </div>
+      <div class="pb" style="padding:10px">
+        <div class="log-list" id="log-list"><div class="empty">No activity yet.</div></div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /main -->
+
+<!-- RIGHT PANEL -->
+<div class="right-col">
+  <div class="right-tabs">
+    <div class="rtab active" onclick="switchRTab('inbox')" id="rtab-inbox">Inbox <span class="rtab-badge" id="inbox-badge" style="display:none">0</span></div>
+    <div class="rtab" onclick="switchRTab('replies')" id="rtab-replies">Replies <span class="rtab-badge" id="replies-badge" style="display:none">0</span></div>
+    <div class="rtab" onclick="switchRTab('seen')" id="rtab-seen">Seen <span class="rtab-badge" id="seen-badge" style="display:none">0</span></div>
+  </div>
+
+  <!-- INBOX PANEL -->
+  <div class="rpanel active" id="rpanel-inbox">
+    <div class="right-body" id="inbox-body">
+      <div class="empty" style="margin-top:50px">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        Messages from AI numbers appear here
+      </div>
+    </div>
+  </div>
+
+  <!-- REPLIES PANEL -->
+  <div class="rpanel" id="rpanel-replies">
+    <!-- List view -->
+    <div id="replies-list-view" style="flex:1;overflow-y:auto">
+      <div class="empty" style="margin-top:50px" id="replies-empty">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
+        Campaign replies appear here
+      </div>
+      <div id="replies-list"></div>
+    </div>
+    <!-- Thread view -->
+    <div class="thread-view" id="thread-view">
+      <div class="thread-header">
+        <button class="back-btn" onclick="closeThread()">← Back</button>
+        <div>
+          <div style="font-size:12px;font-weight:600" id="thread-name">—</div>
+          <div style="font-size:10px;color:var(--muted)" id="thread-phone">—</div>
+        </div>
+        <span class="hot-badge" id="thread-hot" style="display:none">🔥 Hot Lead</span>
+      </div>
+      <div class="thread-body" id="thread-body"></div>
+      <div class="reply-input-row">
+        <input type="text" id="reply-msg" placeholder="Type a reply..." onkeydown="if(event.key==='Enter')sendManualReply()"/>
+        <button class="btn btn-g" onclick="sendManualReply()">Send</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SEEN PANEL -->
+  <div class="rpanel" id="rpanel-seen">
+    <div style="padding:10px 13px;border-bottom:1px solid var(--border);font-size:11px;color:var(--muted)">
+      Contacts who read your campaign messages ✓✓
+    </div>
+    <div id="seen-body">
+      <div class="empty" style="margin-top:50px" id="seen-empty">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        Read receipts appear here when contacts open your messages
+      </div>
+      <div id="seen-list"></div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /layout -->
+<div class="toasts" id="toasts"></div>
+
+<script>
+const socket = io();
+let aiOn = false, campaignOn = false;
+let sampleRow = { name: 'Niagara Health', company: 'Niagara Health', industry: 'Healthcare', city: 'Toronto' };
+let csvColumns = [], inboxTotal = 0, repliesTotal = 0, seenTotal = 0, countdownTimer = null;
+let currentThreadJid = null, campaignStats = { sent: 0, seen: 0, replied: 0, total: 0 };
+
+// ── SOCKET ────────────────────────────────────────────────
+socket.on('status', ({ status, user }) => setConnUI(status, user));
+socket.on('qr', qr => {
+  document.getElementById('qr-img').src = qr;
+  document.getElementById('qr-panel').style.display = '';
+  document.getElementById('conn-panel').style.display = 'none';
+  setConnUI('qr');
+});
+socket.on('ai_status',       ({ enabled }) => setAI(enabled));
+socket.on('numbers_updated', list => { renderNums(list); document.getElementById('s-nums').textContent = list.length; });
+socket.on('csv_loaded',      ({ count, columns }) => {
+  document.getElementById('s-csv').textContent = count;
+  document.getElementById('inf-contacts').textContent = count;
+  setCSVTags(columns);
+});
+socket.on('new_message',     addInbox);
+socket.on('inbox_init',      msgs => msgs.forEach(addInbox));
+socket.on('log_entry',       addLog);
+socket.on('log_init',        logs => logs.forEach(addLog));
+socket.on('persona_loaded',  fillPersona);
+socket.on('replies_init',    list => list.forEach(r => addReply(r, false)));
+
+// ── NEW: Real-time seen receipts ──────────────────────────
+socket.on('message_seen', data => {
+  addSeenEntry(data);
+  seenTotal++;
+  const b = document.getElementById('seen-badge');
+  b.textContent = seenTotal; b.style.display = '';
+});
+
+// ── NEW: Real-time replies ────────────────────────────────
+socket.on('new_reply', data => {
+  addReply(data, true);
+  repliesTotal++;
+  const b = document.getElementById('replies-badge');
+  b.textContent = repliesTotal; b.style.display = '';
+  toast(`↩ Reply from ${data.name}`, 'info');
+});
+
+socket.on('reply_thread_update', ({ jid, role, text, time }) => {
+  if (currentThreadJid === jid) appendBubble(role, text, time);
+});
+
+socket.on('campaign_stats', stats => {
+  campaignStats = stats;
+  updateCampaignStats(stats);
+});
+
+socket.on('campaign_status', d => {
+  updateStats(d.dailySentCount, d.dailyLimit);
+  document.getElementById('s-csv').textContent = d.csvCount;
+  document.getElementById('inf-contacts').textContent = d.csvCount;
+  if (d.campaignRunning) setCampaignUI(true);
+});
+socket.on('campaign_started', ({ total }) => {
+  setCampaignUI(true);
+  document.getElementById('c-bar-txt').textContent = `Sending to ${total} contacts...`;
+  toast('Campaign started!', 'ok');
+});
+socket.on('campaign_progress', ({ current, total, sent }) => {
+  document.getElementById('c-bar-txt').textContent = `${current} / ${total} — ${sent} sent today`;
+  updateStats(sent);
+});
+socket.on('campaign_next_in', ({ ms }) => {
+  clearInterval(countdownTimer);
+  let s = Math.ceil(ms / 1000);
+  document.getElementById('c-countdown').textContent = `Next in ${s}s`;
+  countdownTimer = setInterval(() => {
+    s--;
+    if (s <= 0) { clearInterval(countdownTimer); document.getElementById('c-countdown').textContent = 'Sending...'; }
+    else document.getElementById('c-countdown').textContent = `Next in ${s}s`;
+  }, 1000);
+});
+socket.on('campaign_log',    addLog);
+socket.on('campaign_done',   ({ sent, total, reason }) => {
+  setCampaignUI(false); clearInterval(countdownTimer);
+  toast(reason ? `Stopped: ${reason}` : `Done! ${sent} sent of ${total}.`, 'ok');
+});
+socket.on('campaign_stopped', ({ sent }) => {
+  setCampaignUI(false); clearInterval(countdownTimer);
+  toast(`Campaign stopped. ${sent} sent.`, 'info');
+});
+socket.on('campaign_paused_toggle', paused => {
+  document.getElementById('btn-pause').textContent = paused ? '▶ Resume' : '⏸ Pause';
+});
+socket.on('campaign_error', msg => toast(msg, 'err'));
+
+// ── CONNECTION ────────────────────────────────────────────
+function setConnUI(status, user) {
+  const pill = document.getElementById('conn-pill');
+  const txt  = document.getElementById('conn-txt');
+  pill.className = 'pill ' + status;
+  const connected = status === 'connected';
+  document.getElementById('ai-btn').disabled = !connected;
+  if (connected) {
+    txt.textContent = (user || 'Connected').split(':')[0];
+    document.getElementById('qr-panel').style.display = 'none';
+    document.getElementById('conn-panel').style.display = '';
+    document.getElementById('conn-name').textContent = (user || 'Connected').split(':')[0];
+  } else if (status === 'qr') {
+    txt.textContent = 'Scan QR';
+    document.getElementById('qr-panel').style.display = '';
+    document.getElementById('conn-panel').style.display = 'none';
+  } else {
+    txt.textContent = 'Disconnected';
+    document.getElementById('conn-panel').style.display = 'none';
+  }
+}
+
+// ── AI ────────────────────────────────────────────────────
+async function toggleAI() {
+  const res = await fetch(aiOn ? '/api/ai/stop' : '/api/ai/start', { method: 'POST' });
+  const d   = await res.json();
+  if (d.error) toast(d.error, 'err');
+}
+function setAI(on) {
+  aiOn = on;
+  const btn  = document.getElementById('ai-btn');
+  const live = document.getElementById('ai-live');
+  btn.textContent = on ? '⏹ Stop AI' : '▶ Start AI';
+  btn.className   = 'toggle ' + (on ? 'stop' : 'start');
+  live.style.display = on ? 'flex' : 'none';
+}
+
+// ── CAMPAIGN ─────────────────────────────────────────────
+function setCampaignUI(on) {
+  campaignOn = on;
+  document.getElementById('c-bar').className = 'c-bar' + (on ? ' on' : '');
+  document.getElementById('btn-start').disabled  = on;
+  document.getElementById('btn-start').textContent = on ? '⏳ Running...' : '▶ Start Campaign';
+}
+async function startCampaign() {
+  const tpl = document.getElementById('tpl-input').value.trim();
+  if (!tpl) { toast('Write a template first', 'err'); return; }
+  const res = await fetch('/api/campaign/start', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ template: tpl })
+  });
+  const d = await res.json();
+  if (d.error) toast(d.error, 'err');
+}
+async function pauseCampaign() { await fetch('/api/campaign/pause', { method: 'POST' }); }
+async function stopCampaign()  {
+  if (!confirm('Stop the campaign?')) return;
+  await fetch('/api/campaign/stop', { method: 'POST' });
+}
+
+function updateCampaignStats(s) {
+  document.getElementById('ds-sent').textContent = s.sent || 0;
+  document.getElementById('ds-seen').textContent = s.seen || 0;
+  document.getElementById('ds-replied').textContent = s.replied || 0;
+  document.getElementById('ds-hotleads').textContent = s.replied || 0;
+  const seenPct    = s.sent ? Math.round((s.seen    / s.sent) * 100) : 0;
+  const repliedPct = s.sent ? Math.round((s.replied / s.sent) * 100) : 0;
+  document.getElementById('ds-seen-pct').textContent    = seenPct + '% open rate';
+  document.getElementById('ds-replied-pct').textContent = repliedPct + '% reply rate';
+  document.getElementById('s-seen').textContent    = s.seen    || 0;
+  document.getElementById('s-replied').textContent  = s.replied || 0;
+  document.getElementById('s-hotleads').textContent = s.replied || 0;
+}
+
+// ── CSV ───────────────────────────────────────────────────
+const drop = document.getElementById('drop-zone');
+drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('over'); });
+drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+drop.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('over'); uploadCSV(e.dataTransfer.files[0]); });
+
+async function uploadCSV(file) {
+  if (!file) return;
+  const fd = new FormData(); fd.append('csv', file);
+  const res = await fetch('/api/csv/upload', { method: 'POST', body: fd });
+  const d   = await res.json();
+  if (d.error) { toast(d.error, 'err'); return; }
+
+  csvColumns = d.columns;
+  if (d.preview[0]) sampleRow = d.preview[0];
+  setCSVTags(d.columns); updatePreview();
+
+  document.getElementById('csv-chip').textContent = d.count + ' contacts';
+  document.getElementById('csv-chip').style.display = '';
+  document.getElementById('s-csv').textContent = d.count;
+  document.getElementById('inf-contacts').textContent = d.count;
+
+  drop.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg><p><strong style="color:var(--green)">${d.count} contacts loaded</strong> from ${file.name}</p><p>Click to upload different file</p>`;
+
+  const wrap = document.getElementById('csv-preview');
+  wrap.style.display = '';
+  document.getElementById('preview-tbl').innerHTML = `<thead><tr>${d.columns.map(c=>`<th>${c}</th>`).join('')}</tr></thead><tbody>
+    ${d.preview.map(r=>`<tr>${d.columns.map(c=>`<td>${r[c]||''}</td>`).join('')}</tr>`).join('')}
+  </tbody>`;
+
+  toast(d.count + ' contacts loaded!', 'ok');
+}
+
+function setCSVTags(cols) {
+  const row    = document.getElementById('tag-row');
+  const always = ['{{name}}','{{company}}','{{city}}','{{industry}}'];
+  const extras = cols.filter(c => !['name','phone','Phone','Number','number'].includes(c)).map(c => `{{${c}}}`);
+  const all    = [...new Set([...always, ...extras])];
+  row.innerHTML = all.map(t => `<span class="tag" onclick="insertTag('${t}')">${t}</span>`).join('');
+}
+
+function insertTag(tag) {
+  const ta = document.getElementById('tpl-input');
+  const s = ta.selectionStart, e = ta.selectionEnd;
+  ta.value = ta.value.slice(0, s) + tag + ta.value.slice(e);
+  ta.selectionStart = ta.selectionEnd = s + tag.length;
+  ta.focus(); updatePreview();
+}
+
+function fillTpl(tpl, row) {
+  return tpl.replace(/\{\{(\w+)\}\}/g, (_, k) => row[k] || row[k.toLowerCase()] || `[${k}]`);
+}
+
+function updatePreview() {
+  document.getElementById('tpl-preview').textContent = fillTpl(document.getElementById('tpl-input').value, sampleRow);
+  document.getElementById('inf-sent').textContent = document.getElementById('s-sent').textContent;
+}
+
+function updateStats(sent, limit = 200) {
+  document.getElementById('s-sent').textContent = sent;
+  document.getElementById('inf-sent').textContent = sent;
+  document.getElementById('s-limit').textContent = `of ${limit} limit`;
+  const pct = Math.min((sent / limit) * 100, 100);
+  document.getElementById('s-bar').style.width = pct + '%';
+  if (pct > 80) document.getElementById('s-bar').style.background = 'var(--yellow)';
+  if (pct >= 100) document.getElementById('s-bar').style.background = 'var(--red)';
+}
+
+// ── NUMBERS ───────────────────────────────────────────────
+async function addNumber() {
+  const name  = document.getElementById('n-name').value.trim();
+  const phone = document.getElementById('n-phone').value.trim();
+  const note  = document.getElementById('n-note').value.trim();
+  if (!phone) { toast('Phone required', 'err'); return; }
+  const res = await fetch('/api/numbers/add', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, phone, note })
+  });
+  const d = await res.json();
+  if (d.error) { toast(d.error, 'err'); return; }
+  document.getElementById('n-name').value = '';
+  document.getElementById('n-phone').value = '';
+  document.getElementById('n-note').value = '';
+  toast((name || phone) + ' added', 'ok');
+}
+async function delNum(phone) {
+  if (!confirm(`Remove ${phone}?`)) return;
+  await fetch('/api/numbers/' + encodeURIComponent(phone), { method: 'DELETE' });
+}
+async function clearMem(phone, name) {
+  if (!confirm(`Clear memory for ${name}?`)) return;
+  await fetch('/api/numbers/' + encodeURIComponent(phone) + '/clear-memory', { method: 'POST' });
+  toast('Memory cleared', 'info');
+}
+function renderNums(list) {
+  const el = document.getElementById('num-list');
+  if (!list.length) { el.innerHTML = '<div class="empty">No numbers added yet</div>'; return; }
+  el.innerHTML = list.map(c => `
+    <div class="num-row">
+      <div class="num-av">${(c.name||'?')[0].toUpperCase()}</div>
+      <div class="num-info"><div class="num-name">${c.name||'—'}</div><div class="num-phone">${c.phone}${c.note?` · ${c.note}`:''}</div></div>
+      <div class="num-actions">
+        <button class="ic-btn mem" title="Clear memory" onclick="clearMem('${c.phone}','${c.name||c.phone}')">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.51"/></svg>
+        </button>
+        <button class="ic-btn del" title="Remove" onclick="delNum('${c.phone}')">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
+        </button>
+      </div>
+    </div>`).join('');
+}
+
+// ── PERSONA ───────────────────────────────────────────────
+function fillPersona(p) {
+  if (!p) return;
+  document.getElementById('p-name').value  = p.name || '';
+  document.getElementById('p-role').value  = p.role || '';
+  document.getElementById('p-tone').value  = p.tone || '';
+  document.getElementById('p-ctx').value   = p.business_context || '';
+  document.getElementById('p-rules').value = (p.rules || []).join('\n');
+}
+async function savePersona() {
+  const name = document.getElementById('p-name').value.trim();
+  if (!name) { toast('Name required', 'err'); return; }
+  const res = await fetch('/api/persona', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name, role: document.getElementById('p-role').value.trim(),
+      tone: document.getElementById('p-tone').value.trim(),
+      business_context: document.getElementById('p-ctx').value.trim(),
+      rules: document.getElementById('p-rules').value.trim().split('\n').filter(Boolean)
+    })
+  });
+  const d = await res.json();
+  if (d.error) { toast(d.error, 'err'); return; }
+  toast('Persona saved!', 'ok');
+}
+
+// ── INBOX ─────────────────────────────────────────────────
+function addInbox(msg) {
+  const box = document.getElementById('inbox-body');
+  box.querySelector('.empty')?.remove();
+  inboxTotal++;
+  const b = document.getElementById('inbox-badge');
+  b.textContent = inboxTotal; b.style.display = '';
+  const el  = document.createElement('div');
+  el.className = 'msg-item';
+  const t = new Date(msg.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  el.innerHTML = `<div class="msg-hd"><span class="msg-name"><span class="ndot"></span>${msg.name}</span><span class="msg-t">${t}</span></div><div class="msg-ph">${(msg.from||'').replace('@s.whatsapp.net','').replace('@lid','')}</div><div class="msg-txt">${msg.text}</div>`;
+  box.prepend(el);
+  setTimeout(() => el.querySelector('.ndot')?.remove(), 4000);
+}
+
+// ── REPLIES ───────────────────────────────────────────────
+function addReply(r, prepend = true) {
+  document.getElementById('replies-empty').style.display = 'none';
+  const list = document.getElementById('replies-list');
+  const t    = new Date(r.time || r.lastTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const el   = document.createElement('div');
+  el.className = 'reply-item';
+  el.dataset.jid = r.jid;
+  el.innerHTML = `
+    <div class="msg-hd">
+      <span class="msg-name">${r.isHotLead ? '🔥 ' : ''}${r.name}</span>
+      <span class="msg-t">${t}</span>
+    </div>
+    <div class="msg-ph">${r.phone}</div>
+    <div class="msg-txt">${r.text}</div>`;
+  el.onclick = () => openThread(r.jid, r.name, r.phone, r.isHotLead);
+  if (prepend) list.prepend(el);
+  else         list.appendChild(el);
+}
+
+async function openThread(jid, name, phone, isHotLead) {
+  currentThreadJid = jid;
+  document.getElementById('replies-list-view').style.display = 'none';
+  document.getElementById('thread-view').classList.add('active');
+  document.getElementById('thread-name').textContent  = name;
+  document.getElementById('thread-phone').textContent = phone;
+  document.getElementById('thread-hot').style.display = isHotLead ? '' : 'none';
+
+  const body = document.getElementById('thread-body');
+  body.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:11px;padding:20px">Loading...</div>';
+
+  const res    = await fetch('/api/replies/' + encodeURIComponent(jid) + '/thread');
+  const thread = await res.json();
+  body.innerHTML = '';
+  thread.forEach(m => appendBubble(m.role, m.text, m.time));
+  body.scrollTop = body.scrollHeight;
+}
+
+function closeThread() {
+  currentThreadJid = null;
+  document.getElementById('replies-list-view').style.display = '';
+  document.getElementById('thread-view').classList.remove('active');
+}
+
+function appendBubble(role, text, time) {
+  const body = document.getElementById('thread-body');
+  const el   = document.createElement('div');
+  el.innerHTML = `<div class="bubble ${role}"><div>${text}</div><div class="bubble-time">${new Date(time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div></div>`;
+  body.appendChild(el);
+  body.scrollTop = body.scrollHeight;
+}
+
+async function sendManualReply() {
+  if (!currentThreadJid) return;
+  const input = document.getElementById('reply-msg');
+  const text  = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  const res = await fetch('/api/send', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ jid: currentThreadJid, text })
+  });
+  const d = await res.json();
+  if (d.error) { toast(d.error, 'err'); return; }
+  appendBubble('me', text, new Date().toISOString());
+  toast('Sent!', 'ok');
+}
+
+// ── SEEN RECEIPTS ─────────────────────────────────────────
+function addSeenEntry(data) {
+  document.getElementById('seen-empty').style.display = 'none';
+  const list = document.getElementById('seen-list');
+  const el   = document.createElement('div');
+  el.className = 'seen-item';
+  const t = new Date(data.seenAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  el.innerHTML = `
+    <div class="seen-av">${(data.name||'?')[0].toUpperCase()}</div>
+    <div class="seen-info">
+      <div class="seen-name">${data.name}</div>
+      <div class="seen-sub">${data.text || '—'}</div>
+    </div>
+    <div class="seen-time">✓✓ ${t}</div>`;
+  list.prepend(el);
+}
+
+// ── LOG ───────────────────────────────────────────────────
+function addLog(e) {
+  const feed = document.getElementById('log-list');
+  feed.querySelector('.empty')?.remove();
+  const el = document.createElement('div');
+  el.className = 'log-row';
+  const t = new Date(e.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  let content = '';
+  if (e.type === 'ai_reply') {
+    content = `<div class="log-name">${e.name} <span style="color:var(--muted);font-weight:400">${e.phone}</span></div><div class="log-msg">↙ ${e.incoming}</div><div class="log-reply">↗ ${e.reply}</div>`;
+  } else if (e.status === 'sent') {
+    content = `<div class="log-name">${e.name} <span style="color:var(--muted);font-weight:400">${e.phone}</span></div><div class="log-msg">${e.preview||''}</div>`;
+  } else if (e.status === 'skipped' || e.status === 'failed') {
+    content = `<div class="log-name">${e.name} <span style="color:var(--muted);font-weight:400">${e.phone}</span></div><div class="log-msg">${e.reason||''}</div>`;
+  } else {
+    const color = e.type==='system'?'var(--blue)':e.type==='error'?'var(--red)':e.type==='seen'?'var(--purple)':e.type==='reply'?'var(--yellow)':'var(--muted)';
+    content = `<div class="log-name" style="color:${color}">${e.name||''}</div><div class="log-msg">${e.text||e.reason||''}</div>`;
+  }
+  const badge = e.type || e.status || 'info';
+  el.innerHTML = `<span class="badge ${badge}">${badge==='ai_reply'?'AI':badge}</span><div class="log-content">${content}</div><span class="log-time">${t}</span>`;
+  feed.prepend(el);
+  if (feed.children.length > 200) feed.lastChild?.remove();
+}
+function clearLog() { document.getElementById('log-list').innerHTML = '<div class="empty">Log cleared.</div>'; }
+
+// ── RIGHT TAB SWITCHER ─────────────────────────────────────
+function switchRTab(name) {
+  document.querySelectorAll('.rtab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.rpanel').forEach(p => p.classList.remove('active'));
+  document.getElementById('rtab-' + name).classList.add('active');
+  document.getElementById('rpanel-' + name).classList.add('active');
+  // Clear badge on the tab we're switching to
+  if (name === 'inbox')   { document.getElementById('inbox-badge').style.display   = 'none'; inboxTotal   = 0; }
+  if (name === 'replies') { document.getElementById('replies-badge').style.display = 'none'; repliesTotal = 0; }
+  if (name === 'seen')    { document.getElementById('seen-badge').style.display    = 'none'; seenTotal    = 0; }
+}
+
+// ── NAV ───────────────────────────────────────────────────
+function go(name) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.nav').forEach(n => n.classList.remove('active'));
+  document.getElementById('view-' + name).classList.add('active');
+  document.getElementById('nav-' + name).classList.add('active');
+}
+
+// ── LOGOUT ────────────────────────────────────────────────
+async function doLogout() {
+  if (!confirm('Disconnect WhatsApp?')) return;
+  await fetch('/api/disconnect', { method: 'POST' });
+  toast('Logged out', 'info');
+}
+
+// ── TOAST ─────────────────────────────────────────────────
+function toast(msg, type = 'info') {
+  const b = document.getElementById('toasts');
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.textContent = msg;
+  b.appendChild(el);
+  setTimeout(() => el.remove(), 3500);
+}
+
+// ── INIT ──────────────────────────────────────────────────
+updatePreview();
+document.getElementById('n-phone').addEventListener('keydown', e => { if (e.key === 'Enter') addNumber(); });
+
+fetch('/api/status').then(r => r.json()).then(d => {
+  setConnUI(d.connectionStatus, d.user);
+  setAI(d.aiEnabled);
+  updateStats(d.dailySentCount, d.dailyLimit);
+  document.getElementById('s-csv').textContent = d.csvCount;
+  document.getElementById('inf-contacts').textContent = d.csvCount;
+  document.getElementById('s-nums').textContent = d.allowedCount;
+  if (d.campaignRunning) setCampaignUI(true);
+  if (d.campaignStats) updateCampaignStats(d.campaignStats);
+  if (d.connectionStatus === 'qr' && d.qr) {
+    document.getElementById('qr-img').src = d.qr;
+    document.getElementById('qr-panel').style.display = '';
+  }
+});
+fetch('/api/numbers').then(r => r.json()).then(renderNums);
+fetch('/api/persona').then(r => r.json()).then(fillPersona);
+fetch('/api/replies').then(r => r.json()).then(list => list.forEach(r => addReply(r, false)));
+fetch('/api/receipts').then(r => r.json()).then(list => list.forEach(addSeenEntry));
+</script>
+</body>
+</html>
